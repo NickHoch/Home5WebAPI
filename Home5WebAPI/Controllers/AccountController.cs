@@ -16,6 +16,9 @@ using Microsoft.Owin.Security.OAuth;
 using Home5WebAPI.Models;
 using Home5WebAPI.Providers;
 using Home5WebAPI.Results;
+using System.IO;
+using System.Configuration;
+using Home5WebAPI.Models.Entities;
 
 namespace Home5WebAPI.Controllers
 {
@@ -323,20 +326,32 @@ namespace Home5WebAPI.Controllers
         [Route("Register")]
         public async Task<IHttpActionResult> Register(RegisterBindingModel model)
         {
-            if (!ModelState.IsValid)
+            string uniqueName = String.Empty;
+            if (model.ImageBase64 != null)
             {
-                return BadRequest(ModelState);
+                uniqueName = Guid.NewGuid().ToString() + ".jpeg";
+                var res = ConfigurationManager.AppSettings["ImagePath"];
+                var path = HttpContext.Current.Server.MapPath(ConfigurationManager.AppSettings["ImagePath"])
+                    + uniqueName;
+                byte[] imageBytes = Convert.FromBase64String(model.ImageBase64);
+                File.WriteAllBytes(path, imageBytes);
             }
-
-            var user = new ApplicationUser() { UserName = model.Email, Email = model.Email };
+            var userProfile = new UserProfile
+            {
+                Image = uniqueName
+            };
+            var user = new ApplicationUser
+            {
+                UserName = model.Email,
+                Email = model.Email,
+                UserProfile = userProfile
+            };
 
             IdentityResult result = await UserManager.CreateAsync(user, model.Password);
-
             if (!result.Succeeded)
             {
                 return GetErrorResult(result);
             }
-
             return Ok();
         }
 
@@ -380,7 +395,6 @@ namespace Home5WebAPI.Controllers
                 _userManager.Dispose();
                 _userManager = null;
             }
-
             base.Dispose(disposing);
         }
 
@@ -430,12 +444,10 @@ namespace Home5WebAPI.Controllers
             {
                 IList<Claim> claims = new List<Claim>();
                 claims.Add(new Claim(ClaimTypes.NameIdentifier, ProviderKey, null, LoginProvider));
-
                 if (UserName != null)
                 {
                     claims.Add(new Claim(ClaimTypes.Name, UserName, null, LoginProvider));
                 }
-
                 return claims;
             }
 
